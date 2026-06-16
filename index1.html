@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fuel Log & Mileage Tracker - Multi Vehicle</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:linear-gradient(135deg,#1a1a2e,#16213e);min-height:100vh;padding:20px;color:#333}
+.container{max-width:950px;margin:0 auto}
+h1{text-align:center;color:white;margin-bottom:5px;font-size:2em}
+.subtitle{text-align:center;color:#aaa;margin-bottom:25px}
+.card{background:white;border-radius:14px;padding:22px;margin-bottom:12px;box-shadow:0 8px 30px rgba(0,0,0,0.2)}
+.card h2{color:#333;margin-bottom:12px;font-size:1.05em;border-bottom:2px solid #667eea;padding-bottom:6px}
+.input-row{display:flex;gap:10px;flex-wrap:wrap}
+.input-group{flex:1;min-width:120px;margin-bottom:10px}
+.input-group label{display:block;color:#555;font-weight:600;margin-bottom:3px;font-size:0.8em}
+.input-group input,.input-group select{width:100%;padding:8px 10px;border:2px solid #e0e0e0;border-radius:7px;font-size:0.88em;outline:none}
+.input-group input:focus,.input-group select:focus{border-color:#667eea}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.btn{padding:9px 14px;border:none;border-radius:7px;font-size:0.85em;font-weight:600;cursor:pointer;transition:all 0.2s}
+.btn-primary{background:linear-gradient(135deg,#667eea,#764ba2);color:white}
+.btn-success{background:#27ae60;color:white}
+.btn-danger{background:#e74c3c;color:white}
+.btn-info{background:#3498db;color:white}
+.btn:hover{opacity:0.85;transform:translateY(-1px)}
+.error{color:#e74c3c;text-align:center;margin-top:8px;display:none;font-size:0.83em}
+.stats-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.stat-card{flex:1;min-width:130px;background:linear-gradient(135deg,#667eea,#764ba2);border-radius:10px;padding:16px;text-align:center;color:white}
+.stat-card .sv{font-size:1.5em;font-weight:700}
+.stat-card .sl{font-size:0.78em;opacity:0.8;margin-top:4px}
+.stat-card.green{background:linear-gradient(135deg,#27ae60,#2ecc71)}
+.chart-box{position:relative;height:220px;margin:12px 0}
+table{width:100%;border-collapse:collapse;font-size:0.78em;margin-top:8px}
+th{background:#667eea;color:white;padding:7px 5px;text-align:left;position:sticky;top:0}
+td{padding:6px 5px;border-bottom:1px solid #eee}
+tr:hover{background:#f8f9ff}
+.tbl-wrap{max-height:220px;overflow-y:auto;border-radius:7px;border:1px solid #eee}
+.auth-card{max-width:380px;margin:50px auto}
+.tabs{display:flex;margin-bottom:18px}
+.tab{flex:1;padding:10px;text-align:center;cursor:pointer;border-bottom:3px solid #eee;font-weight:600}
+.tab.active{border-bottom-color:#667eea;color:#667eea}
+.user-bar{display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.1);padding:8px 18px;border-radius:8px;margin-bottom:18px}
+.user-bar span{color:#ccc;font-size:0.88em}
+.user-bar button{background:rgba(255,255,255,0.2);color:white;border:none;padding:5px 12px;border-radius:5px;cursor:pointer}
+.loading{text-align:center;color:white;padding:50px;font-size:1.2em}
+#app{display:none}
+#authSection{display:none}
+.vacc{margin-bottom:10px;border-radius:11px;overflow:hidden;box-shadow:0 3px 12px rgba(0,0,0,0.12)}
+.vhdr{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;color:white;cursor:pointer;user-select:none;transition:opacity 0.2s}
+.vhdr:hover{opacity:0.9}
+.vhdr .vtitle{font-size:1em;font-weight:700;display:flex;align-items:center;gap:7px}
+.vhdr .vsum{font-size:0.8em;opacity:0.9;display:flex;gap:10px;align-items:center}
+.vhdr .vsum span{display:flex;align-items:center;gap:3px}
+.vhdr .eicon{font-size:1.1em;transition:transform 0.3s}
+.vhdr .eicon.exp{transform:rotate(180deg)}
+.vbody{display:none;background:white;padding:18px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 11px 11px}
+.vbody.exp{display:block}
+.add-v{background:rgba(255,255,255,0.08);border:2px dashed rgba(255,255,255,0.3);border-radius:14px;padding:18px;margin-bottom:18px}
+.add-v h3{color:white;margin-bottom:10px;font-size:0.95em}
+.add-v-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.add-v-row .input-group{margin-bottom:0}
+.add-v-row .input-group label{color:#ccc}
+.add-v-row .input-group input,.add-v-row .input-group select{background:rgba(255,255,255,0.95)}
+.del-v{background:rgba(231,76,60,0.85);color:white;border:none;padding:3px 7px;border-radius:4px;cursor:pointer;font-size:0.72em}
+.del-v:hover{background:#c0392b}
+.act-btn{width:28px;height:28px;border:none;border-radius:6px;color:white;font-size:0.85em;font-weight:700;cursor:pointer;margin-right:4px;transition:opacity 0.2s}
+.act-btn:hover{opacity:0.8}
+.act-insert{background:#8e44ad}
+.act-edit{background:#3498db}
+.act-del{background:#e74c3c}
+@media(max-width:600px){.input-row{flex-direction:column}.input-group{min-width:100%}.stats-row{flex-direction:column}.vhdr{flex-direction:column;gap:5px;align-items:flex-start}.vhdr .vsum{flex-wrap:wrap}.add-v-row{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>⛽ Fuel Log & Mileage Tracker</h1>
+<p class="subtitle">Multi-Vehicle • Click vehicle to expand/collapse</p>
+<div id="loadingSection" class="loading">Loading...</div>
+<div id="authSection">
+<div class="card auth-card">
+<div class="tabs"><div class="tab active" id="loginTab" onclick="showTab('login')">Login</div><div class="tab" id="signupTab" onclick="showTab('signup')">Sign Up</div></div>
+<div id="loginForm"><div class="input-group"><label>Email</label><input type="email" id="loginEmail" placeholder="your@email.com"></div><div class="input-group"><label>Password</label><input type="password" id="loginPassword" placeholder="Password"></div><button class="btn btn-primary" onclick="loginUser()" style="width:100%">🔑 Login</button></div>
+<div id="signupForm" style="display:none"><div class="input-group"><label>Email</label><input type="email" id="signupEmail" placeholder="your@email.com"></div><div class="input-group"><label>Password (min 6)</label><input type="password" id="signupPassword" placeholder="Password"></div><div class="input-group"><label>Confirm</label><input type="password" id="signupConfirm" placeholder="Confirm"></div><button class="btn btn-primary" onclick="signupUser()" style="width:100%">📝 Sign Up</button></div>
+<p class="error" id="authErr"></p>
+</div>
+</div>
+<div id="app">
+<div class="user-bar"><span>👤 <span id="userEmail"></span></span><button onclick="logoutUser()">Logout</button></div>
+<div class="add-v">
+<h3>➕ Add New Vehicle</h3>
+<div class="add-v-row">
+<div class="input-group" style="min-width:50px;flex:0.15"><label>Icon</label><select id="nvIcon"><option>🚗</option><option>🏍️</option><option>🚙</option><option>🚐</option><option>🛻</option><option>🏎️</option><option>🛵</option><option>⚡</option></select></div>
+<div class="input-group" style="flex:1"><label>Vehicle Name</label><input type="text" id="nvName" placeholder="e.g. Honda City, Activa 6G"></div>
+<div class="input-group" style="min-width:100px;flex:0.35"><label>Fuel Type</label><select id="nvFuel"><option value="Petrol/Diesel">⛽ Petrol/Diesel</option><option value="CNG">💨 CNG</option><option value="Electric">⚡ Electric</option></select></div>
+<div class="input-group" style="flex:0;min-width:auto"><label>&nbsp;</label><button class="btn btn-primary" onclick="addVehicle()" style="padding:8px 12px;font-size:0.82em">+ Add</button></div>
+</div>
+</div>
+<div id="vList"></div>
+</div>
+</div>
+<script src="fuel-app.js"></script>
+<script src="fuel-app2.js"></script>
+</body>
+</html>
