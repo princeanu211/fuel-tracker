@@ -64,6 +64,15 @@ function buildBody(v){
     s+='<button class="del-v" onclick="event.stopPropagation();removeVehicle(\''+vid+'\')" style="margin-left:auto">🗑 Delete Vehicle</button>';
     s+='</div><input type="file" id="file_'+vid+'" accept=".xlsx,.xls" style="display:none" onchange="handleImport(event,\''+vid+'\')">';
     s+='<p class="error" id="err_'+vid+'"></p></div>';
+    // Reminders
+    s+='<div class="card"><h2>🔔 Reminders</h2>';
+    s+='<div class="rem-form"><div class="input-row">';
+    s+='<div class="input-group"><label>📅 Due Date</label><input type="date" id="rem_date_'+vid+'"></div>';
+    s+='<div class="input-group" style="flex:2"><label>📝 Message</label><input type="text" id="rem_msg_'+vid+'" placeholder="e.g. Service due, Insurance renewal, PUC..."></div>';
+    s+='<div class="input-group" style="flex:0;min-width:auto"><label>&nbsp;</label><button class="btn btn-primary" onclick="addReminder(\''+vid+'\')" style="padding:8px 12px;font-size:0.82em">+ Add</button></div>';
+    s+='</div></div>';
+    s+=buildReminders(vid);
+    s+='</div>';
     // Charts
     s+='<div class="card"><h2>📈 Mileage Trend</h2><div class="chart-box"><canvas id="ch1_'+vid+'"></canvas></div></div>';
     s+='<div class="card"><h2>💰 Cost/KM Monthly</h2><div class="chart-box"><canvas id="ch2_'+vid+'"></canvas></div></div>';
@@ -87,6 +96,25 @@ function buildBody(v){
     return s;
 }
 
+function parseDateSafe(s){
+    if(!s) return new Date(2000,0,1);
+    if(typeof s==='number'){
+        var d=new Date((s-25569)*86400000);
+        return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
+    }
+    if(typeof s==='string' && s.match(/^\d{4}-\d{2}-\d{2}$/)){
+        var p=s.split('-');
+        return new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));
+    }
+    var d=new Date(s);
+    return isNaN(d.getTime())?new Date(2000,0,1):d;
+}
+
+function getMonthKey(s){
+    var d=parseDateSafe(s);
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+
 function renderChartsFor(vid){
     var h=vEntries[vid]||[];
     var data=h.filter(function(e){return e.mileage>0;});
@@ -108,10 +136,10 @@ function renderChartsFor(vid){
     var el2=document.getElementById('ch2_'+vid);
     if(el2&&data.length>0){
         var monthly={};
-        data.forEach(function(e){var d=new Date(e.date);var k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');if(!monthly[k])monthly[k]=[];monthly[k].push(e.price/e.mileage);});
+        data.forEach(function(e){var k=getMonthKey(e.date);if(!monthly[k])monthly[k]=[];monthly[k].push(e.price/e.mileage);});
         var mKeys=Object.keys(monthly).sort();
         var mVals=mKeys.map(function(m){var v=monthly[m];var s=0;v.forEach(function(x){s+=x;});return parseFloat((s/v.length).toFixed(2));});
-        var mLabels=mKeys.map(function(m){var p=m.split('-');return new Date(p[0],p[1]-1).toLocaleDateString('en-IN',{month:'short',year:'numeric'});});
+        var mLabels=mKeys.map(function(m){var p=m.split('-');return new Date(parseInt(p[0]),parseInt(p[1])-1).toLocaleDateString('en-IN',{month:'short',year:'numeric'});});
         charts['ch2_'+vid]=new Chart(el2.getContext('2d'),{
             type:'line',
             data:{labels:mLabels,datasets:[{label:'₹/km',data:mVals,borderColor:'#f39c12',backgroundColor:'rgba(243,156,18,0.1)',borderWidth:2,fill:true,tension:0.3,pointBackgroundColor:'#e67e22',pointRadius:4}]},
@@ -122,11 +150,11 @@ function renderChartsFor(vid){
     var el3=document.getElementById('ch3_'+vid);
     if(el3&&h.length>0){
         var mDist={},mSpend={};
-        h.forEach(function(e){var d=new Date(e.date);var key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');if(!mDist[key])mDist[key]=0;if(!mSpend[key])mSpend[key]=0;mDist[key]+=(e.distance||0);mSpend[key]+=(e.totalCost||0);});
+        h.forEach(function(e){var key=getMonthKey(e.date);if(!mDist[key])mDist[key]=0;if(!mSpend[key])mSpend[key]=0;mDist[key]+=(e.distance||0);mSpend[key]+=(e.totalCost||0);});
         var months=Object.keys(mDist).sort();
         var distVals=months.map(function(m){return mDist[m];});
         var spendVals=months.map(function(m){return parseFloat(mSpend[m].toFixed(0));});
-        var mLabels3=months.map(function(m){var p=m.split('-');return new Date(p[0],p[1]-1).toLocaleDateString('en-IN',{month:'short',year:'numeric'});});
+        var mLabels3=months.map(function(m){var p=m.split('-');return new Date(parseInt(p[0]),parseInt(p[1])-1).toLocaleDateString('en-IN',{month:'short',year:'numeric'});});
         charts['ch3_'+vid]=new Chart(el3.getContext('2d'),{
             type:'bar',
             data:{labels:mLabels3,datasets:[

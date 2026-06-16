@@ -1,7 +1,7 @@
 var FC={apiKey:"AIzaSyCoq89tPAbfCsPfivf2X5WXDCvc_KIxCq4",authDomain:"fuel-log-mileage-tracker.firebaseapp.com",projectId:"fuel-log-mileage-tracker",storageBucket:"fuel-log-mileage-tracker.firebasestorage.app",messagingSenderId:"123148075344",appId:"1:123148075344:web:bf78041443ced5de122c55"};
 firebase.initializeApp(FC);
 var auth=firebase.auth(), db=firebase.firestore();
-var vehicles=[], vEntries={}, currentUser=null, expandedV=null, charts={};
+var vehicles=[], vEntries={}, vReminders={}, currentUser=null, expandedV=null, charts={};
 var COLORS=['#667eea,#764ba2','#27ae60,#219a52','#f39c12,#d68910','#e74c3c,#c0392b','#1abc9c,#16a085','#8e44ad,#6c3483','#2c3e50,#4a6fa1'];
 
 auth.onAuthStateChanged(function(u){
@@ -13,17 +13,93 @@ auth.onAuthStateChanged(function(u){
 function showTab(t){document.getElementById('loginForm').style.display=t==='login'?'block':'none';document.getElementById('signupForm').style.display=t==='signup'?'block':'none';document.getElementById('loginTab').className='tab'+(t==='login'?' active':'');document.getElementById('signupTab').className='tab'+(t==='signup'?' active':'');document.getElementById('authErr').style.display='none';}
 function loginUser(){var e=document.getElementById('loginEmail').value,p=document.getElementById('loginPassword').value,el=document.getElementById('authErr');if(!e||!p){el.textContent='Enter email and password';el.style.display='block';return;}auth.signInWithEmailAndPassword(e,p).catch(function(err){el.textContent=err.message;el.style.display='block';});}
 function signupUser(){var e=document.getElementById('signupEmail').value,p=document.getElementById('signupPassword').value,c=document.getElementById('signupConfirm').value,el=document.getElementById('authErr');if(!e||!p){el.textContent='Fill all fields';el.style.display='block';return;}if(p!==c){el.textContent='Passwords do not match';el.style.display='block';return;}if(p.length<6){el.textContent='Min 6 characters';el.style.display='block';return;}auth.createUserWithEmailAndPassword(e,p).catch(function(err){el.textContent=err.message;el.style.display='block';});}
-function logoutUser(){auth.signOut();vehicles=[];vEntries={};}
+function logoutUser(){auth.signOut();vehicles=[];vEntries={};vReminders={};}
+
+// === FULL BACKUP & RESTORE ===
+function showBackupMsg(text,type){
+    var el=document.getElementById('backupMsg');
+    el.textContent=text;
+    el.style.display='block';
+    el.style.background=type==='success'?'rgba(39,174,96,0.15)':type==='error'?'rgba(231,76,60,0.15)':'rgba(52,152,219,0.15)';
+    el.style.color=type==='success'?'#27ae60':type==='error'?'#e74c3c':'#3498db';
+    el.style.border='1px solid '+(type==='success'?'#27ae60':type==='error'?'#e74c3c':'#3498db');
+    setTimeout(function(){el.style.display='none';},5000);
+}
+function showRestoreConfirm(){document.getElementById('restoreConfirm').style.display='block';}
+function hideRestoreConfirm(){document.getElementById('restoreConfirm').style.display='none';}
+
+function fullBackup(){
+    if(vehicles.length===0){showBackupMsg('No data to backup!','error');return;}
+    var backup={version:2,exportDate:new Date().toISOString(),vehicles:[]};
+    vehicles.forEach(function(v){
+        var vData={icon:v.icon,name:v.name,fuelType:v.fuelType,entries:vEntries[v.id]||[],reminders:vReminders[v.id]||[]};
+        vData.entries=vData.entries.map(function(e){return{date:e.date,odometer:e.odometer,price:e.price,qty:e.qty,fuelType:e.fuelType,distance:e.distance,mileage:e.mileage,totalCost:e.totalCost};});
+        vData.reminders=vData.reminders.map(function(r){return{dueDate:r.dueDate,message:r.message,done:r.done};});
+        backup.vehicles.push(vData);
+    });
+    var json=JSON.stringify(backup,null,2);
+    var blob=new Blob([json],{type:'application/json'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;a.download='FuelTracker_FullBackup_'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+    showBackupMsg('✅ Backup downloaded! ('+vehicles.length+' vehicles, all entries & reminders)','success');
+}
+
+function fullRestore(){
+    hideRestoreConfirm();
+    var input=document.createElement('input');
+    input.type='file';input.accept='.json';
+    input.onchange=function(event){
+        var file=event.target.files[0];if(!file)return;
+        showBackupMsg('⏳ Restoring data...','info');
+        var reader=new FileReader();
+        reader.onload=function(e){
+            try{
+                var backup=JSON.parse(e.target.result);
+                if(!backup.vehicles||!Array.isArray(backup.vehicles)){showBackupMsg('❌ Invalid backup file!','error');return;}
+                var count=0;
+                var promises=[];
+                backup.vehicles.forEach(function(vData){
+                    var v={icon:vData.icon||'🚗',name:vData.name||'Vehicle',fuelType:vData.fuelType||'Petrol/Diesel',createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+                    promises.push(vehiclesRef().add(v).then(function(ref){
+                        var vid=ref.id;
+                        var entryPromises=[];
+                        if(vData.entries&&vData.entries.length>0){
+                            vData.entries.forEach(function(entry){
+                                entryPromises.push(entriesRef(vid).add({date:entry.date,odometer:entry.odometer,price:entry.price,qty:entry.qty,fuelType:entry.fuelType||'Petrol/Diesel',distance:entry.distance||0,mileage:entry.mileage||0,totalCost:entry.totalCost||0}));
+                            });
+                        }
+                        if(vData.reminders&&vData.reminders.length>0){
+                            vData.reminders.forEach(function(rem){
+                                entryPromises.push(remindersRef(vid).add({dueDate:rem.dueDate,message:rem.message,done:rem.done||false,createdAt:firebase.firestore.FieldValue.serverTimestamp()}));
+                            });
+                        }
+                        count++;
+                        return Promise.all(entryPromises);
+                    }));
+                });
+                Promise.all(promises).then(function(){
+                    showBackupMsg('✅ Restored '+count+' vehicles successfully! Reloading...','success');
+                    setTimeout(function(){loadVehicles();},1500);
+                });
+            }catch(err){showBackupMsg('❌ Error: '+err.message,'error');}
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
 function userDoc(){return db.collection('users').doc(currentUser.uid);}
 function vehiclesRef(){return userDoc().collection('vehicles');}
 function entriesRef(vid){return vehiclesRef().doc(vid).collection('entries');}
 
 function loadVehicles(){
     vehiclesRef().orderBy('createdAt','asc').get().then(function(snap){
-        vehicles=[];vEntries={};
-        snap.forEach(function(d){var v=d.data();v.id=d.id;vehicles.push(v);vEntries[v.id]=[];});
+        vehicles=[];vEntries={};vReminders={};
+        snap.forEach(function(d){var v=d.data();v.id=d.id;vehicles.push(v);vEntries[v.id]=[];vReminders[v.id]=[];});
         if(vehicles.length>0&&!expandedV)expandedV=vehicles[0].id;
-        var promises=vehicles.map(function(v){return loadEntries(v.id);});
+        var promises=[];
+        vehicles.forEach(function(v){promises.push(loadEntries(v.id));promises.push(loadReminders(v.id));});
         Promise.all(promises).then(function(){renderAll();});
     });
 }
@@ -170,3 +246,192 @@ function handleImport(event,vid){
         event.target.value='';
     };reader.readAsArrayBuffer(file);
 }
+
+// === REMINDERS ===
+function remindersRef(vid){return vehiclesRef().doc(vid).collection('reminders');}
+
+function loadReminders(vid){
+    return remindersRef(vid).orderBy('dueDate','asc').get().then(function(snap){
+        vReminders[vid]=[];
+        snap.forEach(function(d){var r=d.data();r.id=d.id;vReminders[vid].push(r);});
+    });
+}
+
+function addReminder(vid){
+    var date=document.getElementById('rem_date_'+vid).value;
+    var msg=document.getElementById('rem_msg_'+vid).value.trim();
+    if(!date||!msg){alert('Enter both date and message');return;}
+    var rem={dueDate:date,message:msg,done:false,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+    remindersRef(vid).add(rem).then(function(ref){
+        rem.id=ref.id;
+        if(!vReminders[vid])vReminders[vid]=[];
+        vReminders[vid].push(rem);
+        vReminders[vid].sort(function(a,b){return(a.dueDate||'').localeCompare(b.dueDate||'');});
+        renderAll();
+    });
+}
+
+function delReminder(vid,rid){
+    if(!confirm('Delete this reminder?'))return;
+    remindersRef(vid).doc(rid).delete().then(function(){
+        vReminders[vid]=vReminders[vid].filter(function(r){return r.id!==rid;});
+        renderAll();
+    });
+}
+
+function editReminder(vid,rid){
+    var rem=vReminders[vid].find(function(r){return r.id===rid;});
+    if(!rem)return;
+    // Find the reminder div and replace with inline edit form
+    var remDivs=document.querySelectorAll('[data-rem-id]');
+    var targetDiv=document.querySelector('[data-rem-id="'+rid+'"]');
+    if(!targetDiv){
+        // Fallback: find by iterating
+        var allRemDivs=document.querySelectorAll('.rem-item');
+        var idx=vReminders[vid].findIndex(function(r){return r.id===rid;});
+        if(idx>=0&&allRemDivs[idx]) targetDiv=allRemDivs[idx];
+    }
+    if(!targetDiv) return;
+    targetDiv.innerHTML='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"><input type="date" id="edrem_date_'+rid+'" value="'+rem.dueDate+'" style="padding:6px;border:2px solid #3498db;border-radius:6px;font-size:0.85em"><input type="text" id="edrem_msg_'+rid+'" value="'+rem.message+'" style="flex:1;padding:6px;border:2px solid #3498db;border-radius:6px;font-size:0.85em;min-width:150px"><button onclick="saveRemEdit(\''+vid+'\',\''+rid+'\')" style="background:#27ae60;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600">✓ Save</button><button onclick="renderAll()" style="background:#999;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600">✗ Cancel</button></div>';
+}
+
+function saveRemEdit(vid,rid){
+    var newDate=document.getElementById('edrem_date_'+rid).value;
+    var newMsg=document.getElementById('edrem_msg_'+rid).value.trim();
+    if(!newDate||!newMsg){alert('Fill both date and message');return;}
+    var rem=vReminders[vid].find(function(r){return r.id===rid;});
+    if(!rem)return;
+    rem.message=newMsg;rem.dueDate=newDate;
+    remindersRef(vid).doc(rid).update({message:newMsg,dueDate:newDate});
+    vReminders[vid].sort(function(a,b){return(a.dueDate||'').localeCompare(b.dueDate||'');});
+    renderAll();
+}
+
+function toggleRemDone(vid,rid){
+    var rem=vReminders[vid].find(function(r){return r.id===rid;});
+    if(!rem)return;
+    rem.done=!rem.done;
+    remindersRef(vid).doc(rid).update({done:rem.done});
+    renderAll();
+}
+
+function buildReminders(vid){
+    var rems=vReminders[vid]||[];
+    if(rems.length===0) return '<p style="color:#999;text-align:center;padding:10px;font-size:0.85em">No reminders set.</p>';
+    var today=new Date().toISOString().slice(0,10);
+    var s='<div style="margin-top:12px">';
+    rems.forEach(function(r){
+        var isOverdue=!r.done&&r.dueDate<today;
+        var isDueToday=!r.done&&r.dueDate===today;
+        var isDone=r.done;
+        var bg=isDone?'#f0f0f0':isOverdue?'#ffeaea':isDueToday?'#fff8e6':'#f0f8ff';
+        var border=isDone?'#ddd':isOverdue?'#e74c3c':isDueToday?'#f39c12':'#3498db';
+        var icon=isDone?'✅':isOverdue?'🚨':isDueToday?'⚠️':'🔔';
+        var statusText=isDone?'Done':isOverdue?'OVERDUE':isDueToday?'Due Today':'Upcoming';
+        var statusColor=isDone?'#27ae60':isOverdue?'#e74c3c':isDueToday?'#f39c12':'#3498db';
+        s+='<div class="rem-item" data-rem-id="'+r.id+'" style="display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:8px;border-radius:8px;background:'+bg+';border-left:4px solid '+border+'">';
+        s+='<span style="font-size:1.2em">'+icon+'</span>';
+        s+='<div style="flex:1"><div style="font-weight:600;font-size:0.88em;'+(isDone?'text-decoration:line-through;color:#999':'')+'">'+r.message+'</div>';
+        s+='<div style="font-size:0.75em;color:#777">📅 '+fmtDate(r.dueDate)+' <span style="color:'+statusColor+';font-weight:600;margin-left:6px">'+statusText+'</span></div></div>';
+        s+='<button onclick="editReminder(\''+vid+'\',\''+r.id+'\')" style="background:#3498db;color:white;border:none;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:0.75em">✎</button>';
+        s+='<button onclick="toggleRemDone(\''+vid+'\',\''+r.id+'\')" style="background:'+(isDone?'#999':'#27ae60')+';color:white;border:none;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:0.75em">'+(isDone?'Undo':'Done')+'</button>';
+        s+='<button onclick="delReminder(\''+vid+'\',\''+r.id+'\')" style="background:#e74c3c;color:white;border:none;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:0.75em">🗑</button>';
+        s+='</div>';
+    });
+    s+='</div>';
+    return s;
+}
+
+// === PUSH NOTIFICATIONS WITH SERVICE WORKER ===
+var swRegistration=null;
+
+function registerServiceWorker(){
+    if(!('serviceWorker' in navigator))return;
+    navigator.serviceWorker.register('firebase-messaging-sw.js').then(function(reg){
+        swRegistration=reg;
+        console.log('Service Worker registered');
+    }).catch(function(err){
+        console.log('SW registration failed:',err);
+    });
+}
+
+function requestNotificationPermission(){
+    if(!('Notification' in window))return;
+    if(Notification.permission==='default'){
+        Notification.requestPermission().then(function(permission){
+            if(permission==='granted'){
+                console.log('Notifications enabled');
+                checkAndNotifyReminders();
+            }
+        });
+    }
+}
+
+function checkAndNotifyReminders(){
+    if(!('Notification' in window)||Notification.permission!=='granted')return;
+    var today=new Date().toISOString().slice(0,10);
+    var notified=JSON.parse(localStorage.getItem('notifiedReminders')||'{}');
+    var pendingReminders=[];
+    
+    vehicles.forEach(function(v){
+        var rems=vReminders[v.id]||[];
+        rems.forEach(function(r){
+            if(r.done)return;
+            var key=r.id+'_'+today;
+            if(notified[key])return;
+            if(r.dueDate<=today){
+                pendingReminders.push({id:r.id,dueDate:r.dueDate,message:r.message,vehicleName:v.icon+' '+v.name,done:r.done});
+                notified[key]=true;
+            }
+        });
+    });
+    
+    if(pendingReminders.length>0){
+        // Try Service Worker notifications (works in background)
+        if(swRegistration&&swRegistration.active){
+            swRegistration.active.postMessage({type:'CHECK_REMINDERS',reminders:pendingReminders});
+        }else{
+            // Fallback to regular notifications
+            pendingReminders.forEach(function(r){
+                var isOverdue=r.dueDate<today;
+                var title=isOverdue?'🚨 OVERDUE - '+r.vehicleName:'⚠️ Due Today - '+r.vehicleName;
+                var body=isOverdue?r.message+' (Due: '+r.dueDate+')':r.message;
+                new Notification(title,{body:body,tag:'rem-'+r.id});
+            });
+        }
+    }
+    
+    localStorage.setItem('notifiedReminders',JSON.stringify(notified));
+}
+
+// === THEME TOGGLE (Batman Dark Mode) ===
+function toggleTheme(){
+    document.body.classList.toggle('batman');
+    var isBatman=document.body.classList.contains('batman');
+    localStorage.setItem('fuelTheme',isBatman?'batman':'light');
+    document.getElementById('themeBtn').textContent=isBatman?'☀️':'🦇';
+    document.title=isBatman?'⛽ Fuel Tracker 🦇 Dark Knight Mode':'⛽ Fuel Log & Mileage Tracker';
+    // Re-render charts with appropriate colors
+    if(expandedV) setTimeout(function(){renderChartsFor(expandedV);},100);
+}
+function loadTheme(){
+    var saved=localStorage.getItem('fuelTheme');
+    if(saved==='batman'){
+        document.body.classList.add('batman');
+        var btn=document.getElementById('themeBtn');
+        if(btn) btn.textContent='☀️';
+        document.title='⛽ Fuel Tracker 🦇 Dark Knight Mode';
+    }
+}
+loadTheme();
+
+// Initialize notifications
+setTimeout(function(){
+    registerServiceWorker();
+    requestNotificationPermission();
+},2000);
+
+// Check reminders every 60 seconds (Service Worker keeps it alive in background)
+setInterval(function(){if(currentUser&&vehicles.length>0)checkAndNotifyReminders();},60000);
+// Also check immediately after data loads
+setTimeout(function(){if(currentUser&&vehicles.length>0)checkAndNotifyReminders();},5000);
