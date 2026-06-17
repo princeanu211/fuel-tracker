@@ -76,9 +76,14 @@ A multi-vehicle fuel logging web app with charts, reminders, and cloud sync.
 - Handles Excel serial number dates automatically
 - Proper timezone-safe date handling
 
-### 📱 Mobile Responsive
+### 📱 Progressive Web App (PWA)
+- **Installable** — Chrome shows "Add to Home Screen" prompt automatically
+- **Standalone mode** — Opens full-screen without browser address bar
+- **Custom app icon** — Purple ⛽ fuel pump icon on home screen
+- **Splash screen** — Shows app name & icon while loading
+- **Theme color** — Purple status bar on Android
+- **Apple iOS support** — apple-mobile-web-app meta tags for Safari
 - Fully responsive design (works on phone, tablet, desktop)
-- Add to Home Screen for app-like experience
 - Touch-friendly buttons and inputs
 
 ---
@@ -91,6 +96,9 @@ A multi-vehicle fuel logging web app with charts, reminders, and cloud sync.
 | `fuel-app.js` | Core logic: Auth, Firebase CRUD, Reminders, Notifications |
 | `fuel-app2.js` | Rendering: Accordion, Charts, Tables |
 | `firebase-messaging-sw.js` | Service Worker for background notifications |
+| `manifest.json` | PWA manifest — enables install, standalone mode, icons |
+| `icon-192.png` | App icon 192×192 (home screen) |
+| `icon-512.png` | App icon 512×512 (splash screen) |
 
 ---
 
