@@ -2,7 +2,7 @@
   "name": "Fuel Log & Mileage Tracker",
   "short_name": "Fuel Tracker",
   "description": "Track fuel, mileage & expenses for multiple vehicles",
-  "start_url": "./index1.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#1a1a2e",
