@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Fuel Log & Mileage Tracker - Multi Vehicle</title>
 
 <!-- PWA Manifest & Meta Tags -->
@@ -96,7 +96,8 @@ body.batman .vhdr{background:linear-gradient(135deg,#2a2a2a,#1a1a1a)!important;b
 .act-insert{background:#8e44ad}
 .act-edit{background:#3498db}
 .act-del{background:#e74c3c}
-@media(max-width:600px){.input-row{flex-direction:column}.input-group{min-width:100%}.stats-row{flex-direction:column}.vhdr{flex-direction:column;gap:5px;align-items:flex-start}.vhdr .vsum{flex-wrap:wrap}.add-v-row{flex-direction:column}}
+@media(max-width:600px) and (orientation:portrait){.input-row{flex-direction:column}.input-group{min-width:100%}.stats-row{flex-direction:column}.vhdr{flex-direction:column;gap:5px;align-items:flex-start}.vhdr .vsum{flex-wrap:wrap}.add-v-row{flex-direction:column}}
+@media(max-height:500px) and (orientation:landscape){body{padding:10px}.container{max-width:100%}h1{font-size:1.4em;margin-bottom:2px}.subtitle{margin-bottom:10px;font-size:0.85em}.card{padding:14px;margin-bottom:8px}.stats-row{flex-wrap:nowrap}.stat-card{padding:10px;min-width:auto}.stat-card .sv{font-size:1.1em}.chart-box{height:180px}.tbl-wrap{max-height:180px}.vhdr{padding:10px 16px}.vbody{padding:12px}.add-v{padding:12px;margin-bottom:12px}.user-bar{padding:6px 12px;margin-bottom:12px}}
 </style>
 </head>
 <body>
