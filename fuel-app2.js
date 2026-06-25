@@ -77,19 +77,39 @@ function buildBody(v){
     s+='<div class="card"><h2>📈 Mileage Trend</h2><div class="chart-box"><canvas id="ch1_'+vid+'"></canvas></div></div>';
     s+='<div class="card"><h2>💰 Cost/KM Monthly</h2><div class="chart-box"><canvas id="ch2_'+vid+'"></canvas></div></div>';
     s+='<div class="card"><h2>🛣️ Monthly Distance & 💸 Fuel Spend</h2><div class="chart-box"><canvas id="ch3_'+vid+'"></canvas></div></div>';
-    // Table
+    // Table - Show latest entries on top (reverse order)
     s+='<div class="card"><h2>📋 Fill-up History</h2>';
     if(h.length===0){s+='<p style="color:#999;text-align:center;padding:15px">No entries yet.</p>';}
     else{
+        // === RANGE STATISTICS - Entry comparison controls ===
+        s+='<div class="range-stats-section" style="margin-bottom:16px;padding:14px;background:linear-gradient(135deg,rgba(102,126,234,0.05),rgba(118,75,162,0.05));border-radius:12px;border:1px solid rgba(102,126,234,0.2);">';
+        s+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">';
+        s+='<span style="font-weight:700;font-size:0.9em;color:#667eea;">📊 Range Statistics:</span>';
+        s+='<select id="rangeFrom_'+vid+'" style="padding:6px 10px;border:2px solid #667eea;border-radius:8px;font-size:0.82em;background:rgba(102,126,234,0.05);min-width:160px;cursor:pointer;">';
+        s+='<option value="">-- From Entry --</option>';
+        for(var ri=0;ri<h.length;ri++){s+='<option value="'+ri+'">#'+(ri+1)+' - '+fmtDate(h[ri].date)+' ('+h[ri].odometer.toLocaleString()+' km)</option>';}
+        s+='</select>';
+        s+='<span style="font-size:1em;color:#764ba2;font-weight:bold;">→</span>';
+        s+='<select id="rangeTo_'+vid+'" style="padding:6px 10px;border:2px solid #667eea;border-radius:8px;font-size:0.82em;background:rgba(102,126,234,0.05);min-width:160px;cursor:pointer;">';
+        s+='<option value="">-- To Entry --</option>';
+        for(var ri2=0;ri2<h.length;ri2++){s+='<option value="'+ri2+'">#'+(ri2+1)+' - '+fmtDate(h[ri2].date)+' ('+h[ri2].odometer.toLocaleString()+' km)</option>';}
+        s+='</select>';
+        s+='<button class="btn btn-primary" onclick="showRangeStats(\''+vid+'\')" style="padding:7px 16px;font-size:0.82em;border-radius:8px;">📊 Compare</button>';
+        s+='<button class="btn" onclick="clearRangeStats(\''+vid+'\')" style="padding:7px 12px;font-size:0.82em;background:#95a5a6;color:white;border:none;border-radius:8px;cursor:pointer;">✕ Clear</button>';
+        s+='</div>';
+        s+='<div id="rangeResult_'+vid+'"></div>';
+        s+='</div>';
+
         s+='<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Date</th><th>Fuel</th><th>Odometer</th><th>Distance</th><th>Qty</th><th>Price</th><th>Total ₹</th><th>Mileage</th><th>Action</th></tr></thead><tbody>';
-        h.forEach(function(e,i){
+        for(var i=h.length-1;i>=0;i--){
+            var e=h[i];
             var fu=getUnit(e.fuelType);
             s+='<tr><td>'+(i+1)+'</td><td>'+fmtDate(e.date)+'</td><td>'+(e.fuelType||'P/D')+'</td>';
             s+='<td>'+e.odometer.toLocaleString()+'</td><td>'+(e.distance>0?e.distance+' km':'-')+'</td>';
             s+='<td>'+e.qty.toFixed(1)+' '+fu+'</td><td>₹'+e.price.toFixed(2)+'/'+fu+'</td><td>₹'+e.totalCost.toFixed(0)+'</td>';
             s+='<td>'+(e.mileage>0?e.mileage.toFixed(2)+' km/'+fu:'-')+'</td>';
             s+='<td style="white-space:nowrap"><button class="act-btn act-insert" onclick="insertEntry(\''+vid+'\','+i+')" title="Insert above">+</button><button class="act-btn act-edit" onclick="editEntry(\''+vid+'\','+i+')" title="Edit">✎</button><button class="act-btn act-del" onclick="delEntry(\''+vid+'\','+i+')" title="Delete">✕</button></td></tr>';
-        });
+        }
         s+='</tbody></table></div>';
     }
     s+='</div>';
@@ -164,4 +184,78 @@ function renderChartsFor(vid){
             options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,position:'left',title:{display:true,text:'Distance (km)'}},y1:{beginAtZero:true,position:'right',title:{display:true,text:'Spend (₹)'},grid:{drawOnChartArea:false}}}}
         });
     }
+}
+
+// === RANGE STATISTICS BETWEEN TWO HISTORY ENTRIES ===
+function showRangeStats(vid){
+    var fromEl=document.getElementById('rangeFrom_'+vid);
+    var toEl=document.getElementById('rangeTo_'+vid);
+    var resultEl=document.getElementById('rangeResult_'+vid);
+    if(!fromEl||!toEl||!resultEl) return;
+    var fromIdx=parseInt(fromEl.value);
+    var toIdx=parseInt(toEl.value);
+    if(isNaN(fromIdx)||isNaN(toIdx)){
+        resultEl.innerHTML='<div style="color:#e74c3c;font-size:0.85em;padding:10px;background:rgba(231,76,60,0.08);border-radius:8px;border:1px solid rgba(231,76,60,0.3);margin-top:8px;">⚠️ Please select both "From" and "To" entries.</div>';
+        return;
+    }
+    if(fromIdx>toIdx){var tmp=fromIdx;fromIdx=toIdx;toIdx=tmp;}
+    if(fromIdx===toIdx){
+        resultEl.innerHTML='<div style="color:#f39c12;font-size:0.85em;padding:10px;background:rgba(243,156,18,0.08);border-radius:8px;border:1px solid rgba(243,156,18,0.3);margin-top:8px;">⚠️ Please select two different entries to compare.</div>';
+        return;
+    }
+    var h=vEntries[vid]||[];
+    if(fromIdx<0||toIdx>=h.length) return;
+    var fromEntry=h[fromIdx];
+    var toEntry=h[toIdx];
+    // Calculate statistics between the two entries
+    var totalDist=toEntry.odometer-fromEntry.odometer;
+    var totalFuel=0,totalCost=0,fillUps=0,mileages=[];
+    for(var i=fromIdx+1;i<=toIdx;i++){
+        totalFuel+=h[i].qty;
+        totalCost+=h[i].totalCost;
+        fillUps++;
+        if(h[i].mileage>0) mileages.push(h[i].mileage);
+    }
+    var avgMileage=mileages.length>0?(mileages.reduce(function(a,b){return a+b;},0)/mileages.length):0;
+    var bestMileage=mileages.length>0?Math.max.apply(null,mileages):0;
+    var worstMileage=mileages.length>0?Math.min.apply(null,mileages):0;
+    var costPerKm=totalDist>0?(totalCost/totalDist):0;
+    var avgPrice=totalFuel>0?(totalCost/totalFuel):0;
+    var unit=getUnit(fromEntry.fuelType||'Petrol/Diesel');
+    // Date range
+    var dateFrom=fmtDate(fromEntry.date);
+    var dateTo=fmtDate(toEntry.date);
+    var daysDiff=Math.round((parseDateSafe(toEntry.date)-parseDateSafe(fromEntry.date))/(1000*60*60*24));
+    var kmPerDay=daysDiff>0?(totalDist/daysDiff):0;
+    // Build result HTML
+    var r='<div style="margin-top:10px;padding:16px;background:linear-gradient(135deg,rgba(102,126,234,0.08),rgba(118,75,162,0.08));border-radius:12px;border:1px solid rgba(102,126,234,0.25);">';
+    r+='<div style="font-weight:700;font-size:0.95em;color:#667eea;margin-bottom:12px;">📅 '+dateFrom+' → '+dateTo+' <span style="color:#999;font-weight:400;font-size:0.85em;">('+daysDiff+' days)</span></div>';
+    r+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">';
+    r+='<div style="background:rgba(52,152,219,0.1);padding:12px;border-radius:10px;text-align:center;border:1px solid rgba(52,152,219,0.2);"><div style="font-size:1.2em;font-weight:700;color:#2980b9;">'+totalDist.toLocaleString()+' km</div><div style="font-size:0.75em;color:#666;margin-top:4px;">🛣️ Distance</div></div>';
+    r+='<div style="background:rgba(39,174,96,0.1);padding:12px;border-radius:10px;text-align:center;border:1px solid rgba(39,174,96,0.2);"><div style="font-size:1.2em;font-weight:700;color:#27ae60;">'+(avgMileage>0?avgMileage.toFixed(2):'--')+' km/'+unit+'</div><div style="font-size:0.75em;color:#666;margin-top:4px;">📊 Avg Mileage</div></div>';
+    r+='<div style="background:rgba(243,156,18,0.1);padding:12px;border-radius:10px;text-align:center;border:1px solid rgba(243,156,18,0.2);"><div style="font-size:1.2em;font-weight:700;color:#e67e22;">₹'+totalCost.toLocaleString(undefined,{maximumFractionDigits:0})+'</div><div style="font-size:0.75em;color:#666;margin-top:4px;">💰 Total Spent</div></div>';
+    r+='<div style="background:rgba(142,68,173,0.1);padding:12px;border-radius:10px;text-align:center;border:1px solid rgba(142,68,173,0.2);"><div style="font-size:1.2em;font-weight:700;color:#8e44ad;">'+totalFuel.toFixed(1)+' '+unit+'</div><div style="font-size:0.75em;color:#666;margin-top:4px;">⛽ Fuel Used</div></div>';
+    r+='<div style="background:rgba(231,76,60,0.1);padding:12px;border-radius:10px;text-align:center;border:1px solid rgba(231,76,60,0.2);"><div style="font-size:1.2em;font-weight:700;color:#e74c3c;">₹'+costPerKm.toFixed(2)+'/km</div><div style="font-size:0.75em;color:#666;margin-top:4px;">💸 Cost/KM</div></div>';
+    r+='<div style="background:rgba(26,188,156,0.1);padding:12px;border-radius:10px;text-align:center;border:1px solid rgba(26,188,156,0.2);"><div style="font-size:1.2em;font-weight:700;color:#1abc9c;">'+fillUps+'</div><div style="font-size:0.75em;color:#666;margin-top:4px;">🔄 Fill-ups</div></div>';
+    r+='<div style="background:rgba(44,62,80,0.1);padding:12px;border-radius:10px;text-align:center;border:1px solid rgba(44,62,80,0.2);"><div style="font-size:1.2em;font-weight:700;color:#2c3e50;">₹'+avgPrice.toFixed(2)+'/'+unit+'</div><div style="font-size:0.75em;color:#666;margin-top:4px;">🏷️ Avg Fuel Price</div></div>';
+    r+='<div style="background:rgba(52,73,94,0.1);padding:12px;border-radius:10px;text-align:center;border:1px solid rgba(52,73,94,0.2);"><div style="font-size:1.2em;font-weight:700;color:#34495e;">'+kmPerDay.toFixed(1)+' km/day</div><div style="font-size:0.75em;color:#666;margin-top:4px;">📏 Daily Average</div></div>';
+    r+='</div>';
+    // Best & Worst mileage
+    if(mileages.length>1){
+        r+='<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">';
+        r+='<div style="flex:1;background:rgba(39,174,96,0.12);padding:10px 14px;border-radius:8px;border:1px solid rgba(39,174,96,0.25);text-align:center;"><span style="font-weight:600;color:#27ae60;">🏆 Best: '+bestMileage.toFixed(2)+' km/'+unit+'</span></div>';
+        r+='<div style="flex:1;background:rgba(231,76,60,0.12);padding:10px 14px;border-radius:8px;border:1px solid rgba(231,76,60,0.25);text-align:center;"><span style="font-weight:600;color:#e74c3c;">📉 Worst: '+worstMileage.toFixed(2)+' km/'+unit+'</span></div>';
+        r+='</div>';
+    }
+    r+='</div>';
+    resultEl.innerHTML=r;
+}
+
+function clearRangeStats(vid){
+    var resultEl=document.getElementById('rangeResult_'+vid);
+    var fromEl=document.getElementById('rangeFrom_'+vid);
+    var toEl=document.getElementById('rangeTo_'+vid);
+    if(resultEl) resultEl.innerHTML='';
+    if(fromEl) fromEl.value='';
+    if(toEl) toEl.value='';
 }

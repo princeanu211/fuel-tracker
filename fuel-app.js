@@ -104,8 +104,10 @@ function loadVehicles(){
     });
 }
 function loadEntries(vid){
-    return entriesRef(vid).orderBy('odometer','asc').get().then(function(snap){
-        vEntries[vid]=[];snap.forEach(function(d){var e=d.data();e.id=d.id;vEntries[vid].push(e);});recalc(vid);
+    return entriesRef(vid).get().then(function(snap){
+        vEntries[vid]=[];snap.forEach(function(d){var e=d.data();e.id=d.id;vEntries[vid].push(e);});
+        vEntries[vid].sort(function(a,b){return (Number(a.odometer)||0)-(Number(b.odometer)||0);});
+        recalc(vid);
     });
 }
 function recalc(vid){

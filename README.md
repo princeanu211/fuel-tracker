@@ -50,6 +50,25 @@ A multi-vehicle fuel logging web app with charts, reminders, and cloud sync.
   - 🔴 **✕ Delete** — Remove entry
 - Scroll position preserved after edit/save
 
+### 📊 Range Statistics (Compare Two Entries)
+- Select any two entries from history to compare
+- **"From Entry"** and **"To Entry"** dropdown selectors with date & odometer info
+- Click **"📊 Compare"** to see detailed statistics between the selected range
+- Auto-sorts entries if selected in reverse order
+- **Statistics displayed:**
+  - 🛣️ **Total Distance** — km covered between the two entries
+  - 📊 **Average Mileage** — mean mileage across all fill-ups in range
+  - 💰 **Total Spent** — total fuel expenditure in the range
+  - ⛽ **Fuel Used** — total fuel quantity consumed
+  - 💸 **Cost/KM** — average cost per kilometer
+  - 🔄 **Fill-ups** — number of refueling stops in range
+  - 🏷️ **Avg Fuel Price** — average price paid per unit
+  - 📏 **Daily Average** — km driven per day (based on date range)
+  - 🏆 **Best Mileage** — highest mileage achieved in range
+  - 📉 **Worst Mileage** — lowest mileage in range
+- Beautiful card-based grid layout with color-coded stats
+- **"✕ Clear"** button to reset selection
+
 ### 🔔 Custom Reminders
 - Set reminders with **due date** and **message** per vehicle
 - Color-coded status:
